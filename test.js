@@ -35,7 +35,6 @@ controls.minDistance = 50;
 controls.maxDistance = 1000;  
 
 // --- Lights - Cải thiện ánh sáng ---
-// Ánh sáng chính từ trên xuống
 const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
 dirLight.position.set(100, 200, 100);
 dirLight.castShadow = true;
@@ -173,11 +172,11 @@ function loadSVG(svgText) {
       
       // Vật liệu cải thiện với màu sắc dễ nhìn
       const material = new THREE.MeshPhongMaterial({ 
-        color: 0x2c5aa0,        // Màu xanh dương đậm hơn
-        shininess: 30,          // Độ bóng vừa phải
-        specular: 0x111111,     // Màu phản chiếu
+        color: 0xff6b35,
+        shininess: 35,         
+        specular: 0x111111,     
         side: THREE.DoubleSide,
-        flatShading: false      // Làm mịn bề mặt
+        flatShading: false     
       });
       
       const mesh = new THREE.Mesh(geometry, material);
