@@ -2,39 +2,44 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { SVGLoader } from "three/addons/loaders/SVGLoader.js";
 
+// --- Scene ---
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xdcdcdc);
 
-
+// --- Camera ---
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 2000);
 camera.position.set(200, 300, 200);
 camera.up.set(0, 1, 0);
 camera.lookAt(0, 0, 0);
 
+// --- Renderer ---
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
-// --- OrbitControls:
+// --- OrbitControls ---
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableRotate = true;   
-controls.enableDamping = true;      
+controls.enableRotate = true;
+controls.enableDamping = true;
 controls.screenSpacePanning = true;
-controls.enableZoom = true;       
-controls.enablePan = false;        
+controls.enableZoom = true;
+controls.enablePan = true;
 
-controls.dampingFactor = 0.1;       
-controls.panSpeed = 0.5;           
-controls.zoomSpeed = 0.5;    
+controls.dampingFactor = 0.1;
+controls.panSpeed = 0.5;
+controls.zoomSpeed = 1;
 controls.rotateSpeed = 0.5;
 
-// Giới hạn khoảng cách zoom
-controls.minDistance = 50;  
-controls.maxDistance = 1000;  
+// Giới hạn zoom
+controls.minDistance = 50;
+controls.maxDistance = 400;
 
-// --- Lights - Cải thiện ánh sáng ---
+// Giới hạn pan (toàn cục)
+let panLimit = null;
+
+// --- Lights ---
 const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
 dirLight.position.set(100, 200, 100);
 dirLight.castShadow = true;
@@ -48,15 +53,13 @@ dirLight.shadow.camera.top = 200;
 dirLight.shadow.camera.bottom = -200;
 scene.add(dirLight);
 
-// Ánh sáng phụ từ bên cạnh
 const dirLight2 = new THREE.DirectionalLight(0xffffff, 0.4);
 dirLight2.position.set(-100, 100, 100);
 scene.add(dirLight2);
 
-// Ánh sáng môi trường tăng cường
 scene.add(new THREE.AmbientLight(0x404040, 0.6));
 
-// --- Load OpenCV dynamically ---
+// --- Load OpenCV ---
 async function loadOpenCv() {
   return new Promise((resolve) => {
     const script = document.createElement('script');
@@ -68,16 +71,18 @@ async function loadOpenCv() {
   });
 }
 
-// --- Main init ---
+// --- Init ---
 async function init() {
   await loadOpenCv();
   console.log("OpenCV loaded");
+
   const fileInput = document.getElementById("upload");
   fileInput.disabled = false;
 
   fileInput.addEventListener("change", async (event) => {
     const file = event.target.files[0];
     if (!file) return;
+
     const ext = file.name.split('.').pop().toLowerCase();
     if (ext === 'svg') {
       const text = await file.text();
@@ -114,7 +119,6 @@ async function convertImageToSVG(imgUrl) {
       cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
       cv.GaussianBlur(gray, gray, new cv.Size(3, 3), 0);
       cv.adaptiveThreshold(gray, gray, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 11, 2);
-
       cv.Canny(gray, edges, 20, 100);
 
       let kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(2, 2));
@@ -152,7 +156,7 @@ async function convertImageToSVG(imgUrl) {
   });
 }
 
-// --- Load SVG and extrude 3D ---
+// --- Load SVG và tạo mesh 3D ---
 function loadSVG(svgText) {
   const loader = new SVGLoader();
   const svgData = loader.parse(svgText);
@@ -161,24 +165,23 @@ function loadSVG(svgText) {
   svgData.paths.forEach(path => {
     const shapes = SVGLoader.createShapes(path);
     shapes.forEach(shape => {
-      const geometry = new THREE.ExtrudeGeometry(shape, { 
-        depth: 20, 
+      const geometry = new THREE.ExtrudeGeometry(shape, {
+        depth: 50, // tăng độ dày
         bevelEnabled: true,
         bevelThickness: 1,
         bevelSize: 1,
         bevelOffset: 0,
         bevelSegments: 3
       });
-      
-      // Vật liệu cải thiện với màu sắc dễ nhìn
-      const material = new THREE.MeshPhongMaterial({ 
+
+      const material = new THREE.MeshPhongMaterial({
         color: 0xff6b35,
-        shininess: 35,         
-        specular: 0x111111,     
+        shininess: 35,
+        specular: 0x111111,
         side: THREE.DoubleSide,
-        flatShading: false     
+        flatShading: false
       });
-      
+
       const mesh = new THREE.Mesh(geometry, material);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
@@ -191,35 +194,51 @@ function loadSVG(svgText) {
   const maxSize = Math.max(size.x, size.y, size.z);
   const scale = 200 / maxSize;
   group.scale.set(scale, scale, scale);
-  box.getCenter(group.position).multiplyScalar(-1);
+
+  const heightOffset = size.z * scale / 2; // làm vật thể nổi lên
+  group.position.y += heightOffset;
+
+  // Giới hạn pan quanh vật thể (sau khi đã di chuyển)
+  const actualCenter = group.position.clone();
+  panLimit = {
+    xMin: actualCenter.x - size.x * scale * 0.5,
+    xMax: actualCenter.x + size.x * scale * 0.5,
+    yMin: actualCenter.y - size.y * scale * 0.5,
+    yMax: actualCenter.y + size.y * scale * 0.5,
+    zMin: actualCenter.z - size.z * scale * 0.5,
+    zMax: actualCenter.z + size.z * scale * 0.5
+  };
 
   const old = scene.getObjectByName('svgGroup');
   if (old) scene.remove(old);
   group.name = 'svgGroup';
-
   scene.add(group);
-  
-  // Tự động điều chỉnh camera về góc nhìn từ trên xuống
+
   resetCameraToTopView(group);
 }
 
-// --- Hàm reset camera về góc nhìn từ trên xuống ---
+// --- Giới hạn pan ---
+function clampControlsTarget() {
+  if (!panLimit) return;
+  const t = controls.target;
+  t.x = Math.max(panLimit.xMin, Math.min(panLimit.xMax, t.x));
+  t.y = Math.max(panLimit.yMin, Math.min(panLimit.yMax, t.y));
+  t.z = Math.max(panLimit.zMin, Math.min(panLimit.zMax, t.z));
+}
+
+// --- Camera top view ---
 function resetCameraToTopView(group) {
-  // Lấy bounding box của group
   const box = new THREE.Box3().setFromObject(group);
   const center = box.getCenter(new THREE.Vector3());
   const size = box.getSize(new THREE.Vector3());
   const maxSize = Math.max(size.x, size.y, size.z);
-  
-  // Tính toán vị trí camera để có góc nhìn từ trên xuống
-  const distance = maxSize * 2; // Khoảng cách từ camera đến mô hình
-  const height = maxSize * 1.5; // Độ cao của camera
-  
-  // Đặt camera ở vị trí từ trên xuống
+
+  const distance = maxSize * 2;
+  const height = maxSize * 1.5;
+
   camera.position.set(center.x, center.y + height, center.z + distance);
   camera.lookAt(center.x, center.y, center.z);
-  
-  // Cập nhật controls target
+
   controls.target.copy(center);
   controls.update();
 }
@@ -227,6 +246,15 @@ function resetCameraToTopView(group) {
 // --- Animate ---
 function animate() {
   requestAnimationFrame(animate);
+
+  // Giới hạn pan
+  clampControlsTarget();
+
+  // Giới hạn xoay 180° quanh X (từ trên nhìn xuống)
+  const euler = new THREE.Euler().setFromQuaternion(controls.object.quaternion, "XYZ");
+  euler.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, euler.x)); // ±90°
+  controls.object.quaternion.setFromEuler(euler);
+
   controls.update();
   renderer.render(scene, camera);
 }
