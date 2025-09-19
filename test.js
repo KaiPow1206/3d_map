@@ -201,9 +201,9 @@ function loadSVG(svgText) {
   // Giới hạn pan quanh vật thể (sau khi đã di chuyển)
   const actualCenter = group.position.clone();
   panLimit = {
-    xMin: actualCenter.x - size.x * scale * 0.5,
+    xMin: actualCenter.x - size.x * scale * 0.2,
     xMax: actualCenter.x + size.x * scale * 0.5,
-    yMin: actualCenter.y - size.y * scale * 0.5,
+    yMin: actualCenter.y - size.y * scale * 0.2,
     yMax: actualCenter.y + size.y * scale * 0.5,
     zMin: actualCenter.z - size.z * scale * 0.5,
     zMax: actualCenter.z + size.z * scale * 0.5
