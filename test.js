@@ -39,6 +39,16 @@ controls.maxDistance = 400;
 // Giới hạn pan (toàn cục)
 let panLimit = null;
 
+
+// Giới hạn xoay
+controls.minPolarAngle = 0.6;   // ~28° từ ngang lên, giữ nguyên
+controls.maxPolarAngle = 2.5;   // ~86° từ ngang xuống, nghiêng thêm chút
+
+
+// Cho phép xoay trái/phải nhẹ (azimuth)
+controls.minAzimuthAngle = -Math.PI / 3;
+controls.maxAzimuthAngle = Math.PI /3;
+
 // --- Lights ---
 const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
 dirLight.position.set(100, 200, 100);
@@ -166,7 +176,7 @@ function loadSVG(svgText) {
     const shapes = SVGLoader.createShapes(path);
     shapes.forEach(shape => {
       const geometry = new THREE.ExtrudeGeometry(shape, {
-        depth: 50, // tăng độ dày
+        depth: 70, // tăng độ dày
         bevelEnabled: true,
         bevelThickness: 1,
         bevelSize: 1,
@@ -249,11 +259,6 @@ function animate() {
 
   // Giới hạn pan
   clampControlsTarget();
-
-  // Giới hạn xoay 180° quanh X (từ trên nhìn xuống)
-  const euler = new THREE.Euler().setFromQuaternion(controls.object.quaternion, "XYZ");
-  euler.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, euler.x)); // ±90°
-  controls.object.quaternion.setFromEuler(euler);
 
   controls.update();
   renderer.render(scene, camera);
